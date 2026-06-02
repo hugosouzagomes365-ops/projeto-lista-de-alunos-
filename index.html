@@ -1,1 +1,375 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lista de Alunos</title>
 
+<style>
+:root{
+    --primary:#2563eb;
+    --primary-dark:#1d4ed8;
+    --bg:#f4f7fb;
+    --card:#ffffff;
+    --text:#1f2937;
+    --border:#e5e7eb;
+    --success:#16a34a;
+}
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    font-family:Arial, Helvetica, sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    padding:30px 15px;
+}
+
+.container{
+    max-width:700px;
+    margin:auto;
+}
+
+.card{
+    background:var(--card);
+    border-radius:16px;
+    padding:24px;
+    box-shadow:0 10px 25px rgba(0,0,0,.08);
+}
+
+h1{
+    text-align:center;
+    margin-bottom:20px;
+    font-size:2rem;
+}
+
+.form-group{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+input{
+    flex:1;
+    min-width:200px;
+    padding:14px;
+    border:1px solid var(--border);
+    border-radius:10px;
+    font-size:16px;
+}
+
+button{
+    background:var(--primary);
+    color:white;
+    border:none;
+    padding:14px 20px;
+    border-radius:10px;
+    cursor:pointer;
+    font-size:16px;
+    transition:.2s;
+}
+
+button:hover{
+    background:var(--primary-dark);
+}
+
+.status{
+    margin-top:12px;
+    min-height:24px;
+    font-size:14px;
+}
+
+.success{
+    color:var(--success);
+}
+
+.error{
+    color:#dc2626;
+}
+
+.table-wrapper{
+    margin-top:25px;
+    overflow:hidden;
+    border-radius:12px;
+    border:1px solid var(--border);
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+thead{
+    background:var(--primary);
+    color:white;
+}
+
+th, td{
+    padding:14px;
+    text-align:left;
+}
+
+tbody tr:nth-child(odd){
+    background:#ffffff;
+}
+
+tbody tr:nth-child(even){
+    background:#f8fafc;
+}
+
+.empty{
+    text-align:center;
+    padding:25px;
+    color:#6b7280;
+}
+
+.loading{
+    text-align:center;
+    padding:20px;
+}
+
+@media(max-width:600px){
+    .form-group{
+        flex-direction:column;
+    }
+
+    button{
+        width:100%;
+    }
+
+    h1{
+        font-size:1.6rem;
+    }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+
+        <h1>Lista de Alunos</h1>
+
+        <div class="form-group">
+            <input
+                id="studentName"
+                type="text"
+                placeholder="Digite o nome do aluno"
+                maxlength="150">
+            <button onclick="saveStudent()">
+                Salvar
+            </button>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:90px;">ID</th>
+                        <th>Nome</th>
+                    </tr>
+                </thead>
+                <tbody id="studentsBody">
+                    <tr>
+                        <td colspan="2" class="loading">
+                            Carregando...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+</div>
+
+<script>
+
+/*
+=====================================================
+CONFIGURAÇÃO
+=====================================================
+
+Cole aqui a URL do Web App publicado pelo Apps Script.
+
+Exemplo:
+https://script.google.com/macros/s/AKfycbxxxxxxxxxxxxxxxx/exec
+*/
+
+const CONFIG = {
+    WEB_APP_URL: "https://script.google.com/macros/s/AKfycbxdwt2fp13m0kcA3nXW3waXHbsF0t4RB-KWIxW8RwWb6sjzntRtTfC-lbRsX5iqHUxs/exec"
+};
+
+function showStatus(message, type = "success") {
+    const el = document.getElementById("status");
+    el.className = `status ${type}`;
+    el.textContent = message;
+}
+
+function jsonp(url, callback) {
+
+    const callbackName =
+        "jsonp_callback_" +
+        Date.now() +
+        "_" +
+        Math.floor(Math.random() * 100000);
+
+    window[callbackName] = function(data) {
+
+        callback(data);
+
+        delete window[callbackName];
+
+        if (script.parentNode) {
+            script.parentNode.removeChild(script);
+        }
+    };
+
+    const script = document.createElement("script");
+
+    script.src =
+        url +
+        (url.includes("?") ? "&" : "?") +
+        "callback=" +
+        callbackName;
+
+    script.onerror = function() {
+        showStatus("Erro ao conectar ao servidor.", "error");
+    };
+
+    document.body.appendChild(script);
+}
+
+function loadStudents() {
+
+    const url =
+        CONFIG.WEB_APP_URL +
+        "?action=list";
+
+    jsonp(url, function(response) {
+
+        const tbody =
+            document.getElementById("studentsBody");
+
+        tbody.innerHTML = "";
+
+        if (!response.success) {
+            tbody.innerHTML =
+                `<tr><td colspan="2" class="empty">Erro ao carregar dados.</td></tr>`;
+            return;
+        }
+
+        if (!response.students.length) {
+            tbody.innerHTML =
+                `<tr><td colspan="2" class="empty">Nenhum aluno cadastrado.</td></tr>`;
+            return;
+        }
+
+        response.students.forEach(student => {
+
+            const tr =
+                document.createElement("tr");
+
+            tr.innerHTML = `
+                <td>${student.id}</td>
+                <td>${student.nome}</td>
+            `;
+
+            tbody.appendChild(tr);
+        });
+    });
+}
+
+function saveStudent() {
+
+    const input =
+        document.getElementById("studentName");
+
+    const nome =
+        input.value.trim();
+
+    if (!nome) {
+        showStatus("Digite um nome.", "error");
+        input.focus();
+        return;
+    }
+
+    const url =
+        CONFIG.WEB_APP_URL +
+        "?action=add" +
+        "&name=" +
+        encodeURIComponent(nome);
+
+    jsonp(url, function(response) {
+
+        if (response.success) {
+
+            input.value = "";
+
+            showStatus(
+                "Aluno salvo com sucesso."
+            );
+
+            renderStudents(
+                response.students || []
+            );
+
+        } else {
+
+            showStatus(
+                response.message || "Erro ao salvar.",
+                "error"
+            );
+        }
+    });
+}
+
+function renderStudents(students) {
+
+    const tbody =
+        document.getElementById("studentsBody");
+
+    tbody.innerHTML = "";
+
+    if (!students.length) {
+
+        tbody.innerHTML =
+            `<tr><td colspan="2" class="empty">Nenhum aluno cadastrado.</td></tr>`;
+
+        return;
+    }
+
+    students.forEach(student => {
+
+        const tr =
+            document.createElement("tr");
+
+        tr.innerHTML = `
+            <td>${student.id}</td>
+            <td>${student.nome}</td>
+        `;
+
+        tbody.appendChild(tr);
+    });
+}
+
+document
+.getElementById("studentName")
+.addEventListener("keypress", function(e){
+    if(e.key === "Enter"){
+        saveStudent();
+    }
+});
+
+loadStudents();
+
+</script>
+
+</body>
+</html>
